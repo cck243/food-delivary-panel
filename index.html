@@ -759,17 +759,19 @@
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
         import { getDatabase, ref, set, get, update, onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
+        // Firebase Configuration
         const firebaseConfig = {
+            apiKey: "AIzaSyA8N57hbaclQEmLbzFQ4uinHAo4LXSrj-M",
+            authDomain: "food-huger.firebaseapp.com",
+            databaseURL: "https://food-huger-default-rtdb.firebaseio.com",
+            projectId: "food-huger",
+            storageBucket: "food-huger.firebasestorage.app",
+            messagingSenderId: "527900985953",
+            appId: "1:527900985953:web:b1b11e76e88790e2fcf820",
+            measurementId: "G-MBQE71PJ3B"
+        };
 
-              apiKey: "AIzaSyA8N57hbaclQEmLbzFQ4uinHAo4LXSrj-M",
-              authDomain: "food-huger.firebaseapp.com",
-              databaseURL: "https://food-huger-default-rtdb.firebaseio.com",
-              projectId: "food-huger",
-              storageBucket: "food-huger.firebasestorage.app",
-              messagingSenderId: "527900985953",
-              appId: "1:527900985953:web:b1b11e76e88790e2fcf820",
-               measurementId: "G-MBQE71PJ3B"
-};
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
@@ -777,46 +779,27 @@
         let currentUser = null;
         let deliveryData = null;
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                const deliveryRef = ref(db, `deliveryPartners/${user.uid}`);
-                const snapshot = await get(deliveryRef);
-                
-                if (snapshot.exists()) {
-                    deliveryData = snapshot.val();
-                    document.getElementById('authContainer').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'block';
-                    
-                    const approvalBadge = document.getElementById('approvalStatus');
-                    const onlineToggle = document.getElementById('onlineToggle');
-                    
-                    if (deliveryData.approved) {
-                        approvalBadge.textContent = '✓ Approved';
-                        approvalBadge.className = 'status-badge status-approved';
-                        onlineToggle.disabled = false;
-                        onlineToggle.checked = deliveryData.online || false;
-                    } else {
-                        approvalBadge.textContent = '⏳ Pending Approval';
-                        approvalBadge.className = 'status-badge status-pending';
-                        onlineToggle.disabled = true;
-                    }
-                    
-                    loadProfileData();
-                    loadOrders();
-                    loadEarnings();
-                } else {
-                    showError('Delivery partner profile not found. Please contact support.');
-                    await signOut(auth);
-                }
-            } else {
-                currentUser = null;
-                deliveryData = null;
-                document.getElementById('authContainer').style.display = 'flex';
-                document.getElementById('dashboard').style.display = 'none';
-            }
-        });
+        // Utility functions for showing messages
+        function showError(message) {
+            const errorDiv = document.getElementById('authError');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('authSuccess').style.display = 'none';
+        }
 
+        function showSuccess(message) {
+            const successDiv = document.getElementById('authSuccess');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('authError').style.display = 'none';
+        }
+
+        function hideMessages() {
+            document.getElementById('authError').style.display = 'none';
+            document.getElementById('authSuccess').style.display = 'none';
+        }
+
+        // Form toggle function
         window.toggleForms = () => {
             const loginForm = document.getElementById('loginForm');
             const signupForm = document.getElementById('signupForm');
@@ -830,6 +813,7 @@
             hideMessages();
         };
 
+        // Login function
         window.handleLogin = async () => {
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
@@ -841,11 +825,14 @@
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
+                showSuccess('Login successful!');
             } catch (error) {
-                showError(error.message);
+                console.error('Login error:', error);
+                showError('Login failed: ' + error.message);
             }
         };
 
+        // Signup function
         window.handleSignup = async () => {
             const name = document.getElementById('signupName').value.trim();
             const email = document.getElementById('signupEmail').value.trim();
@@ -868,12 +855,13 @@
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
 
+                // Create delivery partner profile in database
                 await set(ref(db, `deliveryPartners/${user.uid}`), {
-                    name,
-                    email,
-                    phone,
-                    vehicle,
-                    vehicleNumber,
+                    name: name,
+                    email: email,
+                    phone: phone,
+                    vehicle: vehicle,
+                    vehicleNumber: vehicleNumber,
                     approved: false,
                     online: false,
                     totalDeliveries: 0,
@@ -882,14 +870,72 @@
                 });
 
                 showSuccess('Registration successful! Waiting for admin approval.');
+                
+                // Clear form fields
+                document.getElementById('signupName').value = '';
+                document.getElementById('signupEmail').value = '';
+                document.getElementById('signupPassword').value = '';
+                document.getElementById('signupPhone').value = '';
+                document.getElementById('signupVehicle').value = '';
+                document.getElementById('signupVehicleNumber').value = '';
+                
+                // Switch to login form after successful registration
                 setTimeout(() => {
                     toggleForms();
                 }, 2000);
             } catch (error) {
-                showError(error.message);
+                console.error('Signup error:', error);
+                showError('Registration failed: ' + error.message);
             }
         };
 
+        // Auth state listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                try {
+                    const deliveryRef = ref(db, `deliveryPartners/${user.uid}`);
+                    const snapshot = await get(deliveryRef);
+                    
+                    if (snapshot.exists()) {
+                        deliveryData = snapshot.val();
+                        document.getElementById('authContainer').style.display = 'none';
+                        document.getElementById('dashboard').style.display = 'block';
+                        
+                        const approvalBadge = document.getElementById('approvalStatus');
+                        const onlineToggle = document.getElementById('onlineToggle');
+                        
+                        if (deliveryData.approved) {
+                            approvalBadge.textContent = '✓ Approved';
+                            approvalBadge.className = 'status-badge status-approved';
+                            onlineToggle.disabled = false;
+                            onlineToggle.checked = deliveryData.online || false;
+                        } else {
+                            approvalBadge.textContent = '⏳ Pending Approval';
+                            approvalBadge.className = 'status-badge status-pending';
+                            onlineToggle.disabled = true;
+                        }
+                        
+                        loadProfileData();
+                        loadOrders();
+                        loadEarnings();
+                    } else {
+                        showError('Delivery partner profile not found. Please contact support.');
+                        await signOut(auth);
+                    }
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                    showError('Error loading profile data');
+                }
+            } else {
+                currentUser = null;
+                deliveryData = null;
+                document.getElementById('authContainer').style.display = 'flex';
+                document.getElementById('dashboard').style.display = 'none';
+            }
+        });
+
+        // Logout function
         window.handleLogout = async () => {
             try {
                 if (currentUser && deliveryData && deliveryData.online) {
@@ -899,10 +945,12 @@
                 }
                 await signOut(auth);
             } catch (error) {
-                showError(error.message);
+                console.error('Logout error:', error);
+                alert('Error during logout: ' + error.message);
             }
         };
 
+        // Tab switching
         window.switchTab = (tabName) => {
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -911,6 +959,7 @@
             document.getElementById(`${tabName}Tab`).classList.add('active');
         };
 
+        // Online status toggle
         window.toggleOnlineStatus = async () => {
             const isOnline = document.getElementById('onlineToggle').checked;
             try {
@@ -919,20 +968,25 @@
                     lastOnlineUpdate: Date.now()
                 });
             } catch (error) {
+                console.error('Error updating online status:', error);
                 alert('Error updating online status: ' + error.message);
                 document.getElementById('onlineToggle').checked = !isOnline;
             }
         };
 
+        // Load profile data
         function loadProfileData() {
-            document.getElementById('profileName').textContent = deliveryData.name || 'N/A';
-            document.getElementById('profileEmail').textContent = deliveryData.email || 'N/A';
-            document.getElementById('editName').value = deliveryData.name || '';
-            document.getElementById('editPhone').value = deliveryData.phone || '';
-            document.getElementById('editVehicle').value = deliveryData.vehicle || '';
-            document.getElementById('editVehicleNumber').value = deliveryData.vehicleNumber || '';
+            if (deliveryData) {
+                document.getElementById('profileName').textContent = deliveryData.name || 'N/A';
+                document.getElementById('profileEmail').textContent = deliveryData.email || 'N/A';
+                document.getElementById('editName').value = deliveryData.name || '';
+                document.getElementById('editPhone').value = deliveryData.phone || '';
+                document.getElementById('editVehicle').value = deliveryData.vehicle || '';
+                document.getElementById('editVehicleNumber').value = deliveryData.vehicleNumber || '';
+            }
         }
 
+        // Update profile
         window.updateProfile = async () => {
             const name = document.getElementById('editName').value.trim();
             const phone = document.getElementById('editPhone').value.trim();
@@ -959,18 +1013,46 @@
                 document.getElementById('profileName').textContent = name;
                 alert('Profile updated successfully!');
             } catch (error) {
+                console.error('Error updating profile:', error);
                 alert('Error updating profile: ' + error.message);
             }
         };
 
+        // Load orders (placeholder function)
         function loadOrders() {
-            const ordersRef = ref(db, 'orders');
-            onValue(ordersRef, (snapshot) => {
-                const ordersContent = document.getElementById('ordersContent');
-                ordersContent.innerHTML = '';
+            const ordersContent = document.getElementById('ordersContent');
+            ordersContent.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📦</div>
+                    <div class="empty-state-text">No orders assigned yet</div>
+                </div>
+            `;
+            
+            // Set placeholder stats
+            document.getElementById('todayDeliveries').textContent = '0';
+            document.getElementById('todayEarnings').textContent = '₹0';
+        }
 
-                if (snapshot.exists()) {
-                    const orders = snapshot.val();
-                    let assignedOrders = [];
-                    let todayCount = 0;
-                    let todayEarnings =
+        // Load earnings (placeholder function)
+        function loadEarnings() {
+            if (deliveryData) {
+                document.getElementById('totalEarnings').textContent = `₹${deliveryData.totalEarnings || 0}`;
+                document.getElementById('totalDeliveries').textContent = deliveryData.totalDeliveries || 0;
+                
+                const avgEarnings = deliveryData.totalDeliveries > 0 
+                    ? Math.round((deliveryData.totalEarnings || 0) / deliveryData.totalDeliveries)
+                    : 0;
+                document.getElementById('avgEarnings').textContent = `₹${avgEarnings}`;
+            }
+            
+            const earningsHistory = document.getElementById('earningsHistory');
+            earningsHistory.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">💰</div>
+                    <div class="empty-state-text">No earnings history yet</div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
